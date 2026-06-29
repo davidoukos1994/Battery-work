@@ -1,12 +1,1 @@
-{
-  "name": "Battery Work Tracker",
-  "short_name": "Battery Tracker",
-  "description": "Ημερολόγιο εργασίας, μπαταριών και κερδών.",
-  "start_url": "./index.html",
-  "display": "standalone",
-  "background_color": "#0f172a",
-  "theme_color": "#0f172a",
-  "icons": [
-    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
-  ]
-}
+{"name":"Battery Work Tracker","short_name":"Battery Work","start_url":"./index.html","display":"standalone","background_color":"#0b1220","theme_color":"#111827","icons":[{"src":"icon.svg","sizes":"any","type":"image/svg+xml"}]}

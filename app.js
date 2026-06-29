@@ -1,5 +1,5 @@
-const STORAGE_KEY = 'battery-work-tracker-pro-v1';
-const SETTINGS_KEY = 'battery-work-tracker-settings-v1';
+const STORAGE_KEY = 'battery-work-tracker-pro-v2';
+const SETTINGS_KEY = 'battery-work-tracker-settings-v2';
 const HOURLY_RATE = 5;
 const BATTERY_RATE = 0.2;
 const VIRTUAL_HOURS_PER_DAY = 4;
@@ -29,19 +29,22 @@ registerPwa();
 form.addEventListener('submit', (event) => {
   event.preventDefault();
   const payload = {
-    id: entryId.value || crypto.randomUUID(),
+    id: entryId.value || makeId(),
     date: dateInput.value,
-    hours: Number(hoursInput.value),
-    batteries: Number(batteriesInput.value),
+    hours: parseFloat(String(hoursInput.value).replace(',', '.')) || 0,
+    batteries: parseInt(batteriesInput.value, 10) || 0,
     note: noteInput.value.trim(),
     updatedAt: new Date().toISOString()
   };
+  if (!payload.date) { alert('Βάλε ημερομηνία.'); return; }
+  if (payload.hours < 0 || payload.batteries < 0) { alert('Οι ώρες και οι μπαταρίες δεν μπορούν να είναι αρνητικές.'); return; }
   const existingIndex = entries.findIndex((entry) => entry.id === payload.id);
   if (existingIndex >= 0) entries[existingIndex] = payload;
   else entries.push(payload);
   saveEntries();
   resetForm();
   render();
+  alert('Η καταχώρηση αποθηκεύτηκε ✅');
 });
 
 $('resetFormBtn').addEventListener('click', resetForm);
@@ -65,6 +68,10 @@ function loadEntries() {
   catch { return []; }
 }
 function saveEntries() { localStorage.setItem(STORAGE_KEY, JSON.stringify(entries)); }
+function makeId() {
+  if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+  return 'id-' + Date.now() + '-' + Math.random().toString(16).slice(2);
+}
 function calcRealPay(entry) { return (entry.hours * HOURLY_RATE) + (entry.batteries * BATTERY_RATE); }
 function calcVirtualPay(entry) { return (VIRTUAL_HOURS_PER_DAY * HOURLY_RATE) + (entry.batteries * BATTERY_RATE); }
 function sortedEntries() { return [...entries].sort((a, b) => b.date.localeCompare(a.date)); }

@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="el">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#0f172a" />
+  <title>Battery Work Tracker</title>
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="icon" href="icon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <header class="hero">
+      <div>
+        <p class="eyebrow">Προσωπικό ημερολόγιο εργασίας</p>
+        <h1>Battery Work Tracker</h1>
+        <p class="subtitle">Καταχώρηση ημερών, ωρών, μπαταριών και αυτόματος υπολογισμός πραγματικών και εικονικών κερδών.</p>
+      </div>
+      <div class="hero-actions">
+        <button id="themeToggle" class="ghost-btn" type="button">🌙 Dark</button>
+        <button id="installBtn" class="primary-btn hidden" type="button">📲 Εγκατάσταση</button>
+      </div>
+    </header>
+
+    <main>
+      <section class="card form-card">
+        <div class="section-title">
+          <div>
+            <h2 id="formTitle">Νέα καταχώρηση</h2>
+            <p>Μπορείς να γράψεις παλιότερες ή μελλοντικές ημερομηνίες.</p>
+          </div>
+          <button id="resetFormBtn" class="ghost-btn small hidden" type="button">Ακύρωση</button>
+        </div>
+
+        <form id="entryForm" class="entry-form">
+          <input type="hidden" id="entryId" />
+          <label>
+            Ημερομηνία
+            <input id="dateInput" type="date" required />
+          </label>
+          <label>
+            Ώρες εργασίας
+            <input id="hoursInput" type="number" min="0" step="0.25" placeholder="π.χ. 2" required />
+          </label>
+          <label>
+            Μπαταρίες
+            <input id="batteriesInput" type="number" min="0" step="1" placeholder="π.χ. 11" required />
+          </label>
+          <label class="full">
+            Σημείωση προαιρετικά
+            <input id="noteInput" type="text" maxlength="120" placeholder="π.χ. πρωινή βάρδια" />
+          </label>
+          <button class="primary-btn full" type="submit">💾 Αποθήκευση</button>
+        </form>
+      </section>
+
+      <section class="summary-grid">
+        <article class="metric card accent">
+          <span>📅</span>
+          <p>Ημέρες</p>
+          <strong id="totalDays">0</strong>
+        </article>
+        <article class="metric card">
+          <span>⏱️</span>
+          <p>Πραγματικές ώρες</p>
+          <strong id="totalHours">0</strong>
+        </article>
+        <article class="metric card">
+          <span>🔋</span>
+          <p>Μπαταρίες</p>
+          <strong id="totalBatteries">0</strong>
+        </article>
+        <article class="metric card money-real">
+          <span>💶</span>
+          <p>Πραγματικό σύνολο</p>
+          <strong id="realPay">0,00€</strong>
+        </article>
+        <article class="metric card money-virtual">
+          <span>🧮</span>
+          <p>Εικονικό 4ωρο</p>
+          <strong id="virtualPay">0,00€</strong>
+        </article>
+        <article class="metric card">
+          <span>🕓</span>
+          <p>Εικονικές ώρες</p>
+          <strong id="virtualHours">0</strong>
+        </article>
+      </section>
+
+      <section class="card chart-card">
+        <div class="section-title">
+          <div>
+            <h2>Γράφημα μήνα</h2>
+            <p>Σύγκριση πραγματικών και εικονικών κερδών ανά μήνα.</p>
+          </div>
+        </div>
+        <canvas id="monthlyChart" width="900" height="280" aria-label="Γράφημα κερδών"></canvas>
+      </section>
+
+      <section class="card">
+        <div class="section-title controls-title">
+          <div>
+            <h2>Ιστορικό</h2>
+            <p>Φίλτρο ανά μήνα/έτος και εξαγωγή αρχείου.</p>
+          </div>
+          <div class="export-actions">
+            <button id="exportExcelBtn" class="ghost-btn" type="button">📥 Excel</button>
+            <button id="exportPdfBtn" class="ghost-btn" type="button">🧾 PDF</button>
+            <button id="clearAllBtn" class="danger-btn" type="button">🗑️ Όλα</button>
+          </div>
+        </div>
+
+        <div class="filters">
+          <label>
+            Μήνας
+            <select id="monthFilter">
+              <option value="all">Όλοι</option>
+            </select>
+          </label>
+          <label>
+            Έτος
+            <select id="yearFilter">
+              <option value="all">Όλα</option>
+            </select>
+          </label>
+          <label class="search-box">
+            Αναζήτηση
+            <input id="searchInput" type="search" placeholder="ημερομηνία ή σημείωση" />
+          </label>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Ημερομηνία</th>
+                <th>Ώρες</th>
+                <th>Μπαταρίες</th>
+                <th>Πραγματικά</th>
+                <th>Εικονικά 4ωρα</th>
+                <th>Σημείωση</th>
+                <th>Ενέργειες</th>
+              </tr>
+            </thead>
+            <tbody id="entriesTable"></tbody>
+          </table>
+        </div>
+        <p id="emptyState" class="empty-state">Δεν υπάρχει ακόμα καταχώρηση.</p>
+      </section>
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

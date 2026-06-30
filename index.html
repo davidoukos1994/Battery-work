@@ -1,71 +1,75 @@
 <!doctype html>
 <html lang="el">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#111827">
-  <title>Battery Work Tracker</title>
-  <link rel="manifest" href="manifest.webmanifest">
-  <link rel="stylesheet" href="style.css">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0f172a" />
+  <meta name="apple-mobile-web-app-capable" content="no" />
+  <meta name="apple-mobile-web-app-title" content="Battery Work" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <link rel="manifest" href="manifest.webmanifest?v=storage-v2" />
+  <link rel="apple-touch-icon" href="icon.svg" />
+  <link rel="stylesheet" href="style.css?v=storage-v2" />
+  <title>Battery Work</title>
 </head>
 <body>
   <main class="app">
     <header class="hero">
       <div>
-        <h1>🔋 Battery Work</h1>
-        <p>Ώρες, λεπτά, μπαταρίες, πραγματικό και εικονικό 4ωρο.</p>
+        <p class="eyebrow">Battery Work</p>
+        <h1>Ώρες & Μπαταρίες</h1>
+        <p class="sub">Αποθήκευση στη συσκευή σου • δουλεύει και από Αφετηρία</p>
       </div>
-      <button id="themeBtn" class="ghost" type="button">🌙 Dark</button>
+      <button id="darkBtn" class="icon-btn" type="button" aria-label="Dark mode">🌙</button>
     </header>
 
-    <section class="card">
+    <section class="grid stats" aria-label="Σύνολα">
+      <article class="card"><span>Ημέρες</span><strong id="totalDays">0</strong></article>
+      <article class="card"><span>Ώρες</span><strong id="totalTime">0:00</strong></article>
+      <article class="card"><span>Μπαταρίες</span><strong id="totalBatteries">0</strong></article>
+      <article class="card money"><span>Πραγματικά</span><strong id="realTotal">0,00€</strong></article>
+      <article class="card money"><span>Εικονικά 4ωρα</span><strong id="virtualTotal">0,00€</strong></article>
+    </section>
+
+    <section class="panel">
       <h2 id="formTitle">Νέα καταχώρηση</h2>
-      <input type="hidden" id="editId">
-
-      <label>Ημερομηνία
-        <input id="date" type="date" required>
-      </label>
-
-      <div class="grid2">
-        <label>Ώρες
-          <input id="hours" type="number" min="0" step="1" inputmode="numeric" placeholder="π.χ. 2">
-        </label>
-        <label>Λεπτά
-          <input id="minutes" type="number" min="0" max="59" step="1" inputmode="numeric" placeholder="π.χ. 30">
-        </label>
-      </div>
-
-      <label>Μπαταρίες
-        <input id="batteries" type="number" min="0" step="1" inputmode="numeric" placeholder="π.χ. 11">
-      </label>
-
-      <label>Σημείωση
-        <input id="note" type="text" placeholder="π.χ. πρωινή βάρδια">
-      </label>
-
-      <div class="buttons">
-        <button id="saveBtn" type="button">💾 Αποθήκευση</button>
-        <button id="cancelBtn" class="secondary hidden" type="button">Άκυρο</button>
-      </div>
-      <p id="msg" class="msg"></p>
+      <form id="entryForm">
+        <input type="hidden" id="editId" />
+        <label>Ημερομηνία<input id="date" type="date" required /></label>
+        <div class="two">
+          <label>Ώρες<input id="hours" type="number" min="0" step="1" inputmode="numeric" placeholder="π.χ. 2" /></label>
+          <label>Λεπτά<input id="minutes" type="number" min="0" max="59" step="1" inputmode="numeric" placeholder="π.χ. 30" /></label>
+        </div>
+        <label>Μπαταρίες<input id="batteries" type="number" min="0" step="1" inputmode="numeric" placeholder="π.χ. 11" /></label>
+        <div class="buttons">
+          <button class="primary" type="submit">💾 Αποθήκευση</button>
+          <button id="cancelEdit" class="secondary hidden" type="button">Άκυρο</button>
+        </div>
+        <p id="message" class="message" role="status"></p>
+      </form>
     </section>
 
-    <section class="stats" id="stats"></section>
+    <section class="panel">
+      <div class="section-head">
+        <h2>Έλεγχος αποθήκευσης</h2>
+      </div>
+      <p class="hint">Το παρακάτω δείχνει αν η αποθήκευση λειτουργεί στη συσκευή που έχεις ανοίξει τώρα.</p>
+      <div class="storage-box">
+        <span id="storageStatus">Έλεγχος...</span>
+        <button id="testStorage" type="button" class="secondary">Δοκιμή</button>
+      </div>
+      <p class="hint small">Σημαντικό: στο iPhone, Safari και Αφετηρία μπορεί να έχουν ξεχωριστή αποθήκευση. Πρόσθεσέ την στην Αφετηρία και γράφε από εκεί για να μένουν εκεί οι εγγραφές.</p>
+    </section>
 
-    <section class="card">
-      <div class="row">
+    <section class="panel">
+      <div class="section-head">
         <h2>Ιστορικό</h2>
-        <button id="exportBtn" class="secondary" type="button">📥 CSV</button>
+        <button id="exportBtn" type="button" class="secondary">Backup</button>
       </div>
-      <input id="search" type="search" placeholder="Αναζήτηση σε ημερομηνία ή σημείωση">
       <div id="entries" class="entries"></div>
-    </section>
-
-    <section class="card danger-zone">
-      <button id="clearBtn" class="danger" type="button">🗑️ Διαγραφή όλων</button>
     </section>
   </main>
 
-  <script src="app.js"></script>
+  <script src="app.js?v=storage-v2" defer></script>
 </body>
 </html>

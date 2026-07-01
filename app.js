@@ -1,6 +1,6 @@
 (function(){
   'use strict';
-  const VERSION = 'storage-fix-1.0.0';
+  const VERSION = 'monthly-backup-2.0.0';
   const KEY = 'batteryWork.entries.v1';
   const THEME_KEY = 'batteryWork.theme.v1';
   const SETTINGS = { hourlyRate: 5, batteryRate: 0.2, virtualHoursPerDay: 4 };
@@ -22,14 +22,50 @@
   }
   function money(n){return Number(n||0).toLocaleString('el-GR',{style:'currency',currency:'EUR'});}
   function timeText(minutes){
-    const h = Math.floor(minutes/60); const m = minutes%60;
+    const h = Math.floor((minutes||0)/60); const m = (minutes||0)%60;
     return `${h}:${String(m).padStart(2,'0')}`;
   }
   function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,8);}
   function safeNum(v){const n = Number(v); return Number.isFinite(n) && n >= 0 ? n : 0;}
+  function ym(date){return String(date||'').slice(0,7);}
+  function monthName(key){
+    const [y,m] = key.split('-').map(Number);
+    return new Date(y, m-1, 1).toLocaleDateString('el-GR',{month:'long',year:'numeric'}).replace(/^./, c=>c.toUpperCase());
+  }
+  function formatDate(iso){
+    const [y,m,d] = iso.split('-').map(Number);
+    return new Date(y,m-1,d).toLocaleDateString('el-GR',{weekday:'short',day:'2-digit',month:'2-digit',year:'numeric'});
+  }
+  function calcEntry(e){
+    const minutesTotal = Number(e.minutesTotal||0);
+    const batteries = Number(e.batteries||0);
+    return {
+      real:(minutesTotal/60)*SETTINGS.hourlyRate + batteries*SETTINGS.batteryRate,
+      virtual:SETTINGS.virtualHoursPerDay*SETTINGS.hourlyRate + batteries*SETTINGS.batteryRate
+    };
+  }
+  function calcTotals(list){
+    return list.reduce((s,e)=>{
+      const c = calcEntry(e);
+      s.days += 1;
+      s.minutes += Number(e.minutesTotal||0);
+      s.batteries += Number(e.batteries||0);
+      s.real += c.real;
+      s.virtual += c.virtual;
+      if(!s.lastDate || e.date > s.lastDate) s.lastDate = e.date;
+      return s;
+    }, {days:0, minutes:0, batteries:0, real:0, virtual:0, lastDate:''});
+  }
+
+  function normalizeEntry(e){
+    const date = e && e.date ? String(e.date).slice(0,10) : today();
+    const minutesTotal = Math.max(0, Math.floor(Number(e.minutesTotal || (Number(e.hours||0)*60 + Number(e.minutes||0))) || 0));
+    const batteries = Math.max(0, Math.floor(Number(e.batteries) || 0));
+    return { id:e.id || uid(), date, minutesTotal, batteries, updatedAt:e.updatedAt || new Date().toISOString() };
+  }
 
   function canUseLocalStorage(){
-    try{ const k='batteryWork.test'; localStorage.setItem(k, 'ok'); return localStorage.getItem(k)==='ok'; }
+    try{ const k='batteryWork.test'; localStorage.setItem(k, 'ok'); const ok = localStorage.getItem(k)==='ok'; localStorage.removeItem(k); return ok; }
     catch(e){ return false; }
   }
 
@@ -37,6 +73,7 @@
     try{
       entries = JSON.parse(localStorage.getItem(KEY) || '[]');
       if(!Array.isArray(entries)) entries = [];
+      entries = entries.map(normalizeEntry).filter(e=>e.date);
     }catch(e){ entries = []; }
   }
   function save(){
@@ -46,43 +83,95 @@
   function renderStorage(){
     els.storageStatus.textContent = canUseLocalStorage() ? `✅ Η αποθήκευση δουλεύει (${VERSION})` : '❌ Η αποθήκευση είναι μπλοκαρισμένη';
   }
-  function totals(){
-    const totalMinutes = entries.reduce((s,e)=>s+e.minutesTotal,0);
-    const batteries = entries.reduce((s,e)=>s+e.batteries,0);
-    const real = entries.reduce((s,e)=>s+(e.minutesTotal/60)*SETTINGS.hourlyRate + e.batteries*SETTINGS.batteryRate,0);
-    const virtual = entries.reduce((s,e)=>s+SETTINGS.virtualHoursPerDay*SETTINGS.hourlyRate + e.batteries*SETTINGS.batteryRate,0);
-    els.totalDays.textContent = entries.length;
-    els.totalTime.textContent = timeText(totalMinutes);
-    els.totalBatteries.textContent = batteries;
-    els.realTotal.textContent = money(real);
-    els.virtualTotal.textContent = money(virtual);
-  }
-  function formatDate(iso){
-    const [y,m,d] = iso.split('-').map(Number);
-    return new Date(y,m-1,d).toLocaleDateString('el-GR',{weekday:'short',day:'2-digit',month:'2-digit',year:'numeric'});
+  function renderTotals(){
+    const t = calcTotals(entries);
+    els.totalDays.textContent = t.days;
+    els.totalTime.textContent = timeText(t.minutes);
+    els.totalBatteries.textContent = t.batteries;
+    els.realTotal.textContent = money(t.real);
+    els.virtualTotal.textContent = money(t.virtual);
   }
   function renderEntries(){
-    const sorted = [...entries].sort((a,b)=>b.date.localeCompare(a.date));
-    if(!sorted.length){ els.entries.innerHTML = '<p class="hint">Δεν έχεις ακόμα καταχωρήσεις.</p>'; return; }
-    els.entries.innerHTML = sorted.map(e=>{
-      const real = (e.minutesTotal/60)*SETTINGS.hourlyRate + e.batteries*SETTINGS.batteryRate;
-      const virt = SETTINGS.virtualHoursPerDay*SETTINGS.hourlyRate + e.batteries*SETTINGS.batteryRate;
-      return `<article class="entry">
-        <div class="entry-top"><div class="entry-date">${formatDate(e.date)}</div><strong>${money(real)}</strong></div>
-        <p>${timeText(e.minutesTotal)} ώρες • ${e.batteries} μπαταρίες • Εικονικά: ${money(virt)}</p>
-        <div class="entry-actions">
-          <button class="edit" data-edit="${e.id}" type="button">✏️ Επεξεργασία</button>
-          <button class="delete" data-delete="${e.id}" type="button">🗑️ Διαγραφή</button>
+    if(!entries.length){ els.entries.innerHTML = '<p class="hint">Δεν έχεις ακόμα καταχωρήσεις.</p>'; return; }
+    const groups = new Map();
+    [...entries].sort((a,b)=>b.date.localeCompare(a.date)).forEach(e=>{
+      const key = ym(e.date);
+      if(!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(e);
+    });
+    els.entries.innerHTML = [...groups.entries()].map(([key, list])=>{
+      const t = calcTotals(list);
+      const days = list.map(e=>{
+        const c = calcEntry(e);
+        return `<article class="entry day-entry">
+          <div class="entry-top"><div class="entry-date">${formatDate(e.date)}</div><strong>${money(c.real)}</strong></div>
+          <p>${timeText(e.minutesTotal)} ώρες • ${e.batteries} μπαταρίες • Εικονικά: ${money(c.virtual)}</p>
+          <div class="entry-actions">
+            <button class="edit" data-edit="${e.id}" type="button">✏️ Επεξεργασία</button>
+            <button class="delete" data-delete="${e.id}" type="button">🗑️ Διαγραφή</button>
+          </div>
+        </article>`;
+      }).join('');
+      return `<article class="month-card">
+        <div class="month-head">
+          <div><h3>${monthName(key)}</h3><p>Τελευταία αποθήκευση μήνα: ${formatDate(t.lastDate)}</p></div>
+          <span class="month-badge">${t.days} μέρες</span>
         </div>
+        <div class="month-grid">
+          <div><span>Πραγματικά σύνολο</span><strong>${money(t.real)}</strong></div>
+          <div><span>Εικονικά σύνολο</span><strong>${money(t.virtual)}</strong></div>
+          <div><span>Ώρες</span><strong>${timeText(t.minutes)}</strong></div>
+          <div><span>Μπαταρίες</span><strong>${t.batteries}</strong></div>
+        </div>
+        <details class="month-details"><summary>Δες τις μέρες του μήνα</summary>${days}</details>
       </article>`;
     }).join('');
   }
-  function render(){ totals(); renderEntries(); renderStorage(); }
+  function render(){ renderTotals(); renderEntries(); renderStorage(); }
   function resetForm(){
     els.editId.value=''; els.formTitle.textContent='Νέα καταχώρηση'; els.cancelEdit.classList.add('hidden');
     els.date.value=today(); els.hours.value=''; els.minutes.value=''; els.batteries.value='';
   }
-  function show(msg){ els.message.textContent=msg; setTimeout(()=>{ if(els.message.textContent===msg) els.message.textContent=''; },2200); }
+  function show(msg){ els.message.textContent=msg; setTimeout(()=>{ if(els.message.textContent===msg) els.message.textContent=''; },2600); }
+
+  function exportBackup(){
+    const monthly = {};
+    entries.forEach(e=>{
+      const key = ym(e.date); if(!monthly[key]) monthly[key] = { name:monthName(key), entries:[], totals:null };
+      monthly[key].entries.push(e);
+    });
+    Object.keys(monthly).forEach(k=>{ monthly[k].totals = calcTotals(monthly[k].entries); });
+    const data = { app:'Battery Work', version:VERSION, exportedAt:new Date().toISOString(), settings:SETTINGS, entries, monthly };
+    const blob = new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+    const a = document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    a.download=`battery-work-backup-${today()}.json`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+    show('✅ Το backup κατέβηκε με όλες τις μέρες και τα μηνιαία σύνολα.');
+  }
+
+  function importBackup(){
+    const input = document.createElement('input');
+    input.type = 'file'; input.accept = 'application/json,.json';
+    input.addEventListener('change', ()=>{
+      const file = input.files && input.files[0]; if(!file) return;
+      const reader = new FileReader();
+      reader.onload = ()=>{
+        try{
+          const data = JSON.parse(reader.result);
+          const incoming = Array.isArray(data) ? data : data.entries;
+          if(!Array.isArray(incoming)) throw new Error('no entries');
+          const byKey = new Map(entries.map(e=>[e.date, e]));
+          incoming.map(normalizeEntry).forEach(e=>byKey.set(e.date, e));
+          entries = [...byKey.values()].sort((a,b)=>a.date.localeCompare(b.date));
+          save(); render(); show('✅ Έγινε επαναφορά backup.');
+        }catch(err){ show('❌ Το αρχείο backup δεν διαβάζεται.'); }
+      };
+      reader.readAsText(file);
+    });
+    input.click();
+  }
 
   els.form.addEventListener('submit', (ev)=>{
     ev.preventDefault();
@@ -92,9 +181,9 @@
     if(!els.date.value){ show('Βάλε ημερομηνία.'); return; }
     if(h===0 && m===0 && b===0){ show('Γράψε ώρες/λεπτά ή μπαταρίες.'); return; }
     const item = { id: els.editId.value || uid(), date: els.date.value, minutesTotal: h*60 + Math.min(m,59), batteries: b, updatedAt: new Date().toISOString() };
-    const idx = entries.findIndex(e=>e.id===item.id);
-    if(idx>=0) entries[idx]=item; else entries.push(item);
-    save(); render(); resetForm(); show('✅ Αποθηκεύτηκε σωστά.');
+    const idx = entries.findIndex(e=>e.id===item.id || e.date===item.date);
+    if(idx>=0) entries[idx]=Object.assign({}, entries[idx], item); else entries.push(item);
+    save(); render(); resetForm(); show(`✅ Αποθηκεύτηκε στον μήνα ${monthName(ym(item.date))}.`);
   });
 
   els.entries.addEventListener('click', (ev)=>{
@@ -115,15 +204,13 @@
     localStorage.setItem(THEME_KEY, document.documentElement.classList.contains('dark') ? 'dark' : 'light');
   });
   els.exportBtn.addEventListener('click', ()=>{
-    const data = { app:'Battery Work', version:VERSION, exportedAt:new Date().toISOString(), entries };
-    const blob = new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
-    const a = document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='battery-work-backup.json'; a.click(); URL.revokeObjectURL(a.href);
+    if(confirm('Πάτα OK για εξαγωγή backup. Πάτα Άκυρο για επαναφορά/import backup.')) exportBackup();
+    else importBackup();
   });
   els.testStorage.addEventListener('click', ()=>{ renderStorage(); show(canUseLocalStorage() ? '✅ Η αποθήκευση δουλεύει.' : '❌ Δεν δουλεύει η αποθήκευση.'); });
 
   if(localStorage.getItem(THEME_KEY)==='dark') document.documentElement.classList.add('dark');
   if('serviceWorker' in navigator){
-    // Δεν κάνουμε cache με service worker για να μη μένει παλιά έκδοση στο iPhone.
     navigator.serviceWorker.getRegistrations?.().then(regs=>regs.forEach(r=>r.unregister())).catch(()=>{});
   }
   load(); resetForm(); render();

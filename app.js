@@ -1,19 +1,23 @@
 (function(){
   'use strict';
-  const VERSION = 'monthly-backup-2.0.0';
+  const VERSION = 'monthly-backup-2.1.0';
   const KEY = 'batteryWork.entries.v1';
   const THEME_KEY = 'batteryWork.theme.v1';
   const SETTINGS = { hourlyRate: 5, batteryRate: 0.2, virtualHoursPerDay: 4 };
+  const SYNC_KEY = 'batteryWork.githubSync.v1';
   const $ = (id) => document.getElementById(id);
 
   const els = {
     form:$('entryForm'), editId:$('editId'), date:$('date'), hours:$('hours'), minutes:$('minutes'), batteries:$('batteries'),
     formTitle:$('formTitle'), cancelEdit:$('cancelEdit'), message:$('message'), entries:$('entries'),
-    totalDays:$('totalDays'), totalTime:$('totalTime'), totalBatteries:$('totalBatteries'), realTotal:$('realTotal'), virtualTotal:$('virtualTotal'),
-    darkBtn:$('darkBtn'), exportBtn:$('exportBtn'), storageStatus:$('storageStatus'), testStorage:$('testStorage')
+    darkBtn:$('darkBtn'), exportBtn:$('exportBtn'), storageStatus:$('storageStatus'), testStorage:$('testStorage'),
+    syncToggle:$('syncToggle'), syncSettings:$('syncSettings'), syncStatus:$('syncStatus'), syncNow:$('syncNow'),
+    ghOwner:$('ghOwner'), ghRepo:$('ghRepo'), ghBranch:$('ghBranch'), ghPath:$('ghPath'), ghToken:$('ghToken'), saveSync:$('saveSync'), clearSync:$('clearSync')
   };
 
   let entries = [];
+  let syncConfig = null;
+  let syncing = false;
 
   function today(){
     const d = new Date();
@@ -64,6 +68,80 @@
     return { id:e.id || uid(), date, minutesTotal, batteries, updatedAt:e.updatedAt || new Date().toISOString() };
   }
 
+
+
+  function loadSyncConfig(){
+    try{ syncConfig = JSON.parse(localStorage.getItem(SYNC_KEY) || 'null'); }catch(e){ syncConfig = null; }
+    if(syncConfig){
+      els.ghOwner.value = syncConfig.owner || '';
+      els.ghRepo.value = syncConfig.repo || '';
+      els.ghBranch.value = syncConfig.branch || 'main';
+      els.ghPath.value = syncConfig.path || 'battery-work-data.json';
+      els.ghToken.value = syncConfig.token || '';
+    }else{
+      els.ghBranch.value = 'main';
+      els.ghPath.value = 'battery-work-data.json';
+    }
+  }
+  function syncReady(){ return !!(syncConfig && syncConfig.owner && syncConfig.repo && syncConfig.branch && syncConfig.path && syncConfig.token); }
+  function renderSyncStatus(msg){
+    if(msg){ els.syncStatus.textContent = msg; return; }
+    els.syncStatus.textContent = syncReady() ? '✅ Ο συγχρονισμός GitHub είναι ρυθμισμένος.' : 'Δεν έχει ρυθμιστεί συγχρονισμός.';
+  }
+  function mergeEntries(localList, remoteList){
+    const byDate = new Map();
+    [...(localList||[]), ...(remoteList||[])].map(normalizeEntry).forEach(e=>{
+      const old = byDate.get(e.date);
+      if(!old || String(e.updatedAt||'') >= String(old.updatedAt||'')) byDate.set(e.date, e);
+    });
+    return [...byDate.values()].sort((a,b)=>a.date.localeCompare(b.date));
+  }
+  async function githubRequest(method, path, body){
+    const url = `https://api.github.com/repos/${encodeURIComponent(syncConfig.owner)}/${encodeURIComponent(syncConfig.repo)}/contents/${syncConfig.path.split('/').map(encodeURIComponent).join('/')}?ref=${encodeURIComponent(syncConfig.branch)}`;
+    const opts = { method, headers:{ 'Accept':'application/vnd.github+json', 'Authorization':`Bearer ${syncConfig.token}`, 'X-GitHub-Api-Version':'2022-11-28' } };
+    if(body){ opts.headers['Content-Type']='application/json'; opts.body=JSON.stringify(body); }
+    const res = await fetch(url, opts);
+    const text = await res.text();
+    let data = null; try{ data = text ? JSON.parse(text) : null; }catch(e){}
+    if(!res.ok) throw new Error((data && data.message) || text || `GitHub error ${res.status}`);
+    return data;
+  }
+  function b64encodeUnicode(str){ return btoa(unescape(encodeURIComponent(str))); }
+  function b64decodeUnicode(str){ return decodeURIComponent(escape(atob(String(str||'').replace(/\n/g,'')))); }
+  async function syncWithGithub(silent){
+    if(!syncReady()){ if(!silent) show('Πρώτα βάλε τις ρυθμίσεις GitHub.'); renderSyncStatus(); return; }
+    if(syncing) return;
+    syncing = true; renderSyncStatus('🔄 Γίνεται συγχρονισμός...');
+    try{
+      let sha = null, remoteEntries = [];
+      try{
+        const file = await githubRequest('GET');
+        sha = file.sha;
+        const parsed = JSON.parse(b64decodeUnicode(file.content || ''));
+        remoteEntries = Array.isArray(parsed) ? parsed : (parsed.entries || []);
+      }catch(e){
+        if(!String(e.message||'').includes('Not Found')) throw e;
+      }
+      entries = mergeEntries(entries, remoteEntries);
+      saveLocalOnly();
+      const payload = { app:'Battery Work', version:VERSION, updatedAt:new Date().toISOString(), settings:SETTINGS, entries };
+      const body = { message:`Battery Work sync ${today()}`, content:b64encodeUnicode(JSON.stringify(payload,null,2)), branch:syncConfig.branch };
+      if(sha) body.sha = sha;
+      await githubRequest('PUT', null, body);
+      render();
+      renderSyncStatus(`✅ Συγχρονίστηκε: ${entries.length} καταχωρήσεις.`);
+      if(!silent) show('✅ Ο συγχρονισμός ολοκληρώθηκε.');
+    }catch(err){
+      console.error(err);
+      renderSyncStatus('❌ Πρόβλημα συγχρονισμού. Έλεγξε token/repo/branch.');
+      if(!silent) show('❌ Δεν έγινε συγχρονισμός.');
+    }finally{ syncing = false; }
+  }
+  function saveLocalOnly(){
+    localStorage.setItem(KEY, JSON.stringify(entries));
+    localStorage.setItem('batteryWork.lastSaved.v1', new Date().toISOString());
+  }
+
   function canUseLocalStorage(){
     try{ const k='batteryWork.test'; localStorage.setItem(k, 'ok'); const ok = localStorage.getItem(k)==='ok'; localStorage.removeItem(k); return ok; }
     catch(e){ return false; }
@@ -77,20 +155,13 @@
     }catch(e){ entries = []; }
   }
   function save(){
-    localStorage.setItem(KEY, JSON.stringify(entries));
-    localStorage.setItem('batteryWork.lastSaved.v1', new Date().toISOString());
+    saveLocalOnly();
+    if(syncReady()) syncWithGithub(true);
   }
   function renderStorage(){
     els.storageStatus.textContent = canUseLocalStorage() ? `✅ Η αποθήκευση δουλεύει (${VERSION})` : '❌ Η αποθήκευση είναι μπλοκαρισμένη';
   }
-  function renderTotals(){
-    const t = calcTotals(entries);
-    els.totalDays.textContent = t.days;
-    els.totalTime.textContent = timeText(t.minutes);
-    els.totalBatteries.textContent = t.batteries;
-    els.realTotal.textContent = money(t.real);
-    els.virtualTotal.textContent = money(t.virtual);
-  }
+  function renderTotals(){ /* Το πάνω πλαίσιο με τα σύνολα αφαιρέθηκε στην έκδοση 2.1.0. */ }
   function renderEntries(){
     if(!entries.length){ els.entries.innerHTML = '<p class="hint">Δεν έχεις ακόμα καταχωρήσεις.</p>'; return; }
     const groups = new Map();
@@ -127,7 +198,7 @@
       </article>`;
     }).join('');
   }
-  function render(){ renderTotals(); renderEntries(); renderStorage(); }
+  function render(){ renderEntries(); renderStorage(); renderSyncStatus(); }
   function resetForm(){
     els.editId.value=''; els.formTitle.textContent='Νέα καταχώρηση'; els.cancelEdit.classList.add('hidden');
     els.date.value=today(); els.hours.value=''; els.minutes.value=''; els.batteries.value='';
@@ -208,10 +279,26 @@
     else importBackup();
   });
   els.testStorage.addEventListener('click', ()=>{ renderStorage(); show(canUseLocalStorage() ? '✅ Η αποθήκευση δουλεύει.' : '❌ Δεν δουλεύει η αποθήκευση.'); });
+  els.syncToggle.addEventListener('click', ()=> els.syncSettings.classList.toggle('hidden'));
+  els.saveSync.addEventListener('click', ()=>{
+    syncConfig = {
+      owner: els.ghOwner.value.trim(), repo: els.ghRepo.value.trim(), branch: els.ghBranch.value.trim() || 'main',
+      path: els.ghPath.value.trim() || 'battery-work-data.json', token: els.ghToken.value.trim()
+    };
+    localStorage.setItem(SYNC_KEY, JSON.stringify(syncConfig));
+    renderSyncStatus(); show('✅ Αποθηκεύτηκαν οι ρυθμίσεις συγχρονισμού.'); syncWithGithub(true);
+  });
+  els.clearSync.addEventListener('click', ()=>{
+    if(!confirm('Να καθαριστούν οι ρυθμίσεις συγχρονισμού από αυτή τη συσκευή;')) return;
+    localStorage.removeItem(SYNC_KEY); syncConfig = null; els.ghOwner.value=''; els.ghRepo.value=''; els.ghToken.value=''; els.ghBranch.value='main'; els.ghPath.value='battery-work-data.json'; renderSyncStatus();
+  });
+  els.syncNow.addEventListener('click', ()=> syncWithGithub(false));
 
+
+  loadSyncConfig();
   if(localStorage.getItem(THEME_KEY)==='dark') document.documentElement.classList.add('dark');
   if('serviceWorker' in navigator){
     navigator.serviceWorker.getRegistrations?.().then(regs=>regs.forEach(r=>r.unregister())).catch(()=>{});
   }
-  load(); resetForm(); render();
+  load(); resetForm(); render(); if(syncReady()) syncWithGithub(true);
 })();

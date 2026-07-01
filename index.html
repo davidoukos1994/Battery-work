@@ -7,40 +7,32 @@
   <meta name="apple-mobile-web-app-capable" content="no" />
   <meta name="apple-mobile-web-app-title" content="Battery Work" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-  <link rel="manifest" href="manifest.webmanifest?v=monthly-backup-v2" />
+  <link rel="manifest" href="manifest.webmanifest?v=monthly-backup-v2-1" />
   <link rel="apple-touch-icon" href="icon.svg" />
-  <link rel="stylesheet" href="style.css?v=monthly-backup-v2" />
+  <link rel="stylesheet" href="style.css?v=monthly-backup-v2-1" />
   <title>Battery Work</title>
 </head>
 <body>
   <main class="app">
-    <header class="hero">
+    <header class="hero compact">
       <div>
         <p class="eyebrow">Battery Work</p>
-        <h1>Ώρες & Μπαταρίες</h1>
-        <p class="sub">Αποθήκευση στη συσκευή σου • δουλεύει και από Αφετηρία</p>
+        <h1>Νέα καταχώρηση</h1>
+        <p class="sub">Γράψε τη σημερινή αποθήκευση</p>
       </div>
       <button id="darkBtn" class="icon-btn" type="button" aria-label="Dark mode">🌙</button>
     </header>
 
-    <section class="grid stats" aria-label="Σύνολα">
-      <article class="card"><span>Ημέρες</span><strong id="totalDays">0</strong></article>
-      <article class="card"><span>Ώρες</span><strong id="totalTime">0:00</strong></article>
-      <article class="card"><span>Μπαταρίες</span><strong id="totalBatteries">0</strong></article>
-      <article class="card money"><span>Πραγματικά</span><strong id="realTotal">0,00€</strong></article>
-      <article class="card money"><span>Εικονικά 4ωρα</span><strong id="virtualTotal">0,00€</strong></article>
-    </section>
-
-    <section class="panel">
+    <section class="panel form-panel">
       <h2 id="formTitle">Νέα καταχώρηση</h2>
       <form id="entryForm">
         <input type="hidden" id="editId" />
         <label>Ημερομηνία<input id="date" type="date" required /></label>
-        <div class="two">
+        <div class="two three-desktop">
           <label>Ώρες<input id="hours" type="number" min="0" step="1" inputmode="numeric" placeholder="π.χ. 2" /></label>
           <label>Λεπτά<input id="minutes" type="number" min="0" max="59" step="1" inputmode="numeric" placeholder="π.χ. 30" /></label>
+          <label>Μπαταρίες<input id="batteries" type="number" min="0" step="1" inputmode="numeric" placeholder="π.χ. 11" /></label>
         </div>
-        <label>Μπαταρίες<input id="batteries" type="number" min="0" step="1" inputmode="numeric" placeholder="π.χ. 11" /></label>
         <div class="buttons">
           <button class="primary" type="submit">💾 Αποθήκευση</button>
           <button id="cancelEdit" class="secondary hidden" type="button">Άκυρο</button>
@@ -58,7 +50,33 @@
         <span id="storageStatus">Έλεγχος...</span>
         <button id="testStorage" type="button" class="secondary">Δοκιμή</button>
       </div>
-      <p class="hint small">Σημαντικό: στο iPhone, Safari και Αφετηρία μπορεί να έχουν ξεχωριστή αποθήκευση. Πρόσθεσέ την στην Αφετηρία και γράφε από εκεί για να μένουν εκεί οι εγγραφές.</p>
+      <p class="hint small">Σημαντικό: χωρίς συγχρονισμό, το κινητό και ο υπολογιστής έχουν ξεχωριστή τοπική αποθήκευση.</p>
+    </section>
+
+    <section class="panel">
+      <div class="section-head">
+        <h2>Συγχρονισμός συσκευών</h2>
+        <button id="syncToggle" type="button" class="secondary">Ρυθμίσεις</button>
+      </div>
+      <p class="hint">Για να βλέπεις τα ίδια δεδομένα σε κινητό και υπολογιστή, ενεργοποίησε συγχρονισμό GitHub.</p>
+      <div class="storage-box sync-status-box">
+        <span id="syncStatus">Δεν έχει ρυθμιστεί συγχρονισμός.</span>
+        <button id="syncNow" type="button" class="secondary">Συγχρονισμός τώρα</button>
+      </div>
+      <div id="syncSettings" class="sync-settings hidden">
+        <label>GitHub username / owner<input id="ghOwner" type="text" placeholder="π.χ. davidoukos1994" autocapitalize="none" /></label>
+        <label>Repository<input id="ghRepo" type="text" placeholder="π.χ. Battery-work" autocapitalize="none" /></label>
+        <div class="two">
+          <label>Branch<input id="ghBranch" type="text" placeholder="main" autocapitalize="none" /></label>
+          <label>Αρχείο δεδομένων<input id="ghPath" type="text" placeholder="battery-work-data.json" autocapitalize="none" /></label>
+        </div>
+        <label>GitHub token<input id="ghToken" type="password" placeholder="fine-grained token με Contents: Read and Write" /></label>
+        <div class="buttons">
+          <button id="saveSync" class="primary" type="button">✅ Αποθήκευση ρυθμίσεων</button>
+          <button id="clearSync" class="secondary" type="button">Καθαρισμός</button>
+        </div>
+        <p class="hint small">Το token μένει μόνο στη συσκευή σου. Μην το βάζεις σε ξένη συσκευή.</p>
+      </div>
     </section>
 
     <section class="panel">
@@ -70,6 +88,6 @@
     </section>
   </main>
 
-  <script src="app.js?v=monthly-backup-v2" defer></script>
+  <script src="app.js?v=monthly-backup-v2-1" defer></script>
 </body>
 </html>
